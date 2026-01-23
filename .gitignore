@@ -1,0 +1,21 @@
+
+# Data directories
+/workspaces/CommonCrawl/
+~/Data/
+*.warc.gz
+*.feather
+*.db
+*.log
+
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Processing outputs
+*/02_warc/
+*/03_text/
+*/04_quality/
+*/05_filtered/
+*/06_ner/
+*/07_geocoded/
