@@ -40,7 +40,8 @@ if not YEAR_MONTH or len(YEAR_MONTH) != 7 or YEAR_MONTH[4] != '/':
 BASE_URL = "https://data.commoncrawl.org/crawl-data/CC-NEWS/"
 folder = YEAR_MONTH.replace("/", "-")
 WARC_PATHS_FILE = f"{YEAR_MONTH}/warc.paths.gz"
-DOWNLOAD_FOLDER = os.path.join(r"D:\CommonCrawl\news", folder)
+DOWNLOAD_FOLDER = os.path.join("/workspaces", "CommonCrawl", "news", folder)
+
 DOWNLOAD_URL = "https://data.commoncrawl.org/"
 
 # Ensure folder exists
