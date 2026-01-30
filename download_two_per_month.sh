@@ -8,7 +8,7 @@ START_MONTH=8
 END_YEAR=2016
 END_MONTH=9
 
-BASE_PATH="$HOME/Data/CommonCrawl/news"
+BASE_PATH="/data/CommonCrawl/news"
 mkdir -p "$BASE_PATH"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

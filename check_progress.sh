@@ -11,8 +11,8 @@ fi
 
 MONTH_INPUT="$1"
 MONTH_DIR=$(echo $MONTH_INPUT | tr '/' '-')
-BASE="$HOME/Data/CommonCrawl/news/$MONTH_DIR"
-DB="$HOME/Data/CommonCrawl/news/news_database.db"
+BASE="/data/CommonCrawl/news/$MONTH_DIR"
+DB="/data/CommonCrawl/news/news_database.db"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📊 Progress for $MONTH_INPUT"

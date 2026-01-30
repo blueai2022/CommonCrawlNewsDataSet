@@ -2,7 +2,7 @@
 
 # Process all downloaded months through the entire pipeline
 
-BASE_PATH="$HOME/Data/CommonCrawl/news"
+BASE_PATH="/data/CommonCrawl/news"
 SCRIPT_DIR="$(pwd)/Project_Scripts"
 DB_PATH="$BASE_PATH/news_database.db"
 
