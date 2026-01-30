@@ -80,14 +80,19 @@ sudo apt install -y \
     wget \
     sqlite3 \
     git \
+    git-lfs \
     htop \
     iotop \
     screen \
     tmux \
     tree
 
+# Initialize Git LFS (REQUIRED for downloading spaCy model)
+git lfs install
+
 # Verify installations
 python3 --version  # Should show Python 3.12+
+git lfs version    # Should show Git LFS 3.x
 curl --version
 sqlite3 --version
 git --version
