@@ -39,8 +39,8 @@ if [ ! -f "$TLDS_FILE" ]; then
 import pandas as pd
 import os
 
-# Common non-German TLDs to exclude
-tlds = ['.com', '.co.uk', '.fr', '.es', '.it', '.ru', '.cn', '.jp', '.nl', '.be', '.pl']
+# Common TLDs to exclude
+tlds = []  # Empty list = keep ALL countries
 df = pd.DataFrame({'Country Code': tlds})
 
 try:
@@ -80,12 +80,18 @@ for month in "${months_to_process[@]}"; do
 done
 echo ""
 
-# Ask for confirmation
-read -p "Continue with processing? (y/n): " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Cancelled."
-    exit 0
+# Ask for confirmation (skip if running non-interactively)
+if [ -t 0 ]; then
+    # stdin is a terminal, we can ask for confirmation
+    read -p "Continue with processing? (y/n): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Cancelled."
+        exit 0
+    fi
+else
+    # Non-interactive (nohup, cron, etc.), auto-continue
+    echo "Running non-interactively, auto-continuing..."
 fi
 
 echo ""
