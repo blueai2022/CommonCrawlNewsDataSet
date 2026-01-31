@@ -21,6 +21,83 @@ def read_feather(file_path):
         print(f"Error reading {file_path}: {e}")
         return pd.DataFrame()  # Return an empty DataFrame in case of error
 
+def add_nuts_codes(geomap):
+    """
+    Add NUTS codes to geomap based on coordinates.
+    
+    Args:
+        geomap: DataFrame with 'latitude' and 'longitude' columns
+        
+    Returns:
+        DataFrame with added NUTS and GEN columns
+    """
+    try:
+        import geopandas as gpd
+        from shapely.geometry import Point
+    except ImportError:
+        print("⚠️  geopandas not installed. Installing...")
+        os.system("pip install -q geopandas")
+        import geopandas as gpd
+        from shapely.geometry import Point
+    
+    # Define NUTS file path
+    nuts_file = "/home/ubuntu/CommonCrawlNewsDataSet/data/nuts/nuts_2021.geojson"
+    
+    # Download NUTS data if missing
+    if not os.path.exists(nuts_file):
+        print(f"📥 Downloading NUTS data...")
+        os.makedirs(os.path.dirname(nuts_file), exist_ok=True)
+        
+        import urllib.request
+        url = "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/NUTS_RG_01M_2021_4326.geojson"
+        try:
+            urllib.request.urlretrieve(url, nuts_file)
+            print(f"   ✅ Downloaded NUTS data")
+        except Exception as e:
+            print(f"   ❌ Download failed: {e}")
+            print(f"   Continuing without NUTS codes...")
+            geomap['NUTS'] = None
+            geomap['GEN'] = None
+            return geomap
+    
+    # Load NUTS data
+    try:
+        print(f"🗺️  Loading NUTS regions...")
+        nuts_gdf = gpd.read_file(nuts_file)
+        print(f"   Loaded {len(nuts_gdf)} NUTS regions")
+    except Exception as e:
+        print(f"❌ Error loading NUTS data: {e}")
+        geomap['NUTS'] = None
+        geomap['GEN'] = None
+        return geomap
+    
+    # Initialize NUTS columns
+    geomap['NUTS'] = None
+    geomap['GEN'] = None
+    
+    # Match coordinates to NUTS regions
+    print(f"📍 Matching coordinates to NUTS regions...")
+    matched = 0
+    
+    for idx, row in tqdm(geomap.iterrows(), total=len(geomap), desc="NUTS matching"):
+        if pd.notna(row['latitude']) and pd.notna(row['longitude']):
+            try:
+                point = Point(row['longitude'], row['latitude'])
+                matches = nuts_gdf[nuts_gdf.geometry.contains(point)]
+                
+                if len(matches) > 0:
+                    # Get most detailed region (highest NUTS level)
+                    best_match = matches.sort_values('LEVL_CODE', ascending=False).iloc[0]
+                    geomap.at[idx, 'NUTS'] = best_match['NUTS_ID']
+                    geomap.at[idx, 'GEN'] = best_match['NUTS_NAME']
+                    matched += 1
+            except Exception as e:
+                continue
+    
+    print(f"   ✅ Matched {matched} / {geomap['latitude'].notna().sum()} locations to NUTS")
+    
+    return geomap
+
 # Main function for processing feather files and creating geomap
 def main():
     # If no arguments, search for all 06_ner folders automatically
@@ -82,7 +159,8 @@ def main():
     geomap["longitude"] = None
 
     # Iterate over each place name and geocode
-    for idx, row in geomap.iterrows():
+    print(f"🔍 Geocoding {len(geomap)} locations...")
+    for idx, row in tqdm(geomap.iterrows(), total=len(geomap), desc="Geocoding"):
         try:
             location = geocode(row["loc_normal"] + ", Germany")
 
@@ -97,12 +175,24 @@ def main():
             geomap.at[idx, "latitude"] = None
             geomap.at[idx, "longitude"] = None
 
+    # Add NUTS codes (NEW - single function call)
+    print()
+    geomap = add_nuts_codes(geomap)
+
     # Now you can save or continue with your spatial join…
+    print()
     geomap.to_excel('/data/CommonCrawl/news/geomap.xlsx', index=False)
     geomap.to_csv('/data/CommonCrawl/news/geomap.csv', index=False)
     print("✅ Saved geomap to:")
     print("   Excel: /data/CommonCrawl/news/geomap.xlsx")
     print("   CSV: /data/CommonCrawl/news/geomap.csv")
+    
+    # Show summary
+    print()
+    print("📊 Geomap Summary:")
+    print(f"   Total locations: {len(geomap)}")
+    print(f"   With coordinates: {geomap['latitude'].notna().sum()}")
+    print(f"   With NUTS codes: {geomap['NUTS'].notna().sum()}")
 
 if __name__ == "__main__":
     main()

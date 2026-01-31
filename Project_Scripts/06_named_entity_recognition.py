@@ -42,18 +42,32 @@ def get_entities(filepath, nlp, out_folder):
             data["date_crawled"] = pd.to_datetime(extracted_date)
 
         ents_loc = []
+        ents_loc_normal = []  # NEW LINE
 
         # Process each text and extract entities
         for text in tqdm(data["text"], desc=f"Processing {os.path.basename(filepath)}", leave=False):
             doc = nlp(text)
-            ents_loc.append([ent.text for ent in doc.ents if ent.label_ == 'city_names'])
+            locations = [ent.text for ent in doc.ents if ent.label_ == 'city_names']
+            ents_loc.append(locations)
+            
+            # NEW: Create normalized version
+            if locations:
+                first_loc = str(locations[0])
+                # Keep Unicode word characters (\w), spaces, hyphens, apostrophes; remove everything else
+                normalized = re.sub(r"[^\w\s'\-]", "", first_loc, flags=re.UNICODE).lower().strip()
+                normalized = re.sub(r'\s+', ' ', normalized)  # Collapse multiple spaces
+                ents_loc_normal.append(normalized)
+            else:
+                ents_loc_normal.append("")
+    
 
         # Add extracted entities to the DataFrame
         data["loc"] = ents_loc
+        data["loc_normal"] = ents_loc_normal  # NEW LINE
 
         # Select relevant columns
         data = data[['date', 'url', 'id', 'excerpt', 'tags',
-                     'categories', 'title', 'text', 'hostname', 'date_crawled', "loc"]]
+                     'categories', 'title', 'text', 'hostname', 'date_crawled', "loc", "loc_normal"]]  # ADDED loc_normal
         data.reset_index(drop=True, inplace=True)
 
         # Save the processed file
