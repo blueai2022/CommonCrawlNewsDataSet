@@ -40,7 +40,11 @@ import pandas as pd
 import os
 
 # Common TLDs to exclude
-tlds = []  # Empty list = keep ALL countries
+# Around line 43, change the TLD list:
+
+# Common TLDs to exclude (FRANCE: exclude non-.fr domains)
+tlds = ['.com', '.co.uk', '.de', '.es', '.it', '.ru', '.cn', '.jp', '.nl', '.be', '.pl', '.at', '.ch', '.se', '.dk', '.no', '.fi', '.pt', '.gr', '.cz', '.ro', '.hu', '.ie', '.org', '.net', '.edu', '.gov', '.mil']
+
 df = pd.DataFrame({'Country Code': tlds})
 
 try:

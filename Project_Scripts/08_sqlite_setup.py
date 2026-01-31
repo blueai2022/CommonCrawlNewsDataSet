@@ -117,6 +117,12 @@ def load_and_insert_metadata(directory: str, location_map: Dict[str, int], curso
                 data["loc_normal"] = data["loc_normal"].fillna("").astype(str).str.lower()
                 data["loc_normal"] = data["loc_normal"].apply(lambda x: re.sub(r"[^a-zäöüß ']", "", x).strip())
 
+                # Convert datetime columns to strings for SQLite compatibility
+                if 'date' in data.columns:
+                    data['date'] = pd.to_datetime(data['date'], errors='coerce').dt.strftime('%Y-%m-%d')
+                if 'date_crawled' in data.columns:
+                    data['date_crawled'] = pd.to_datetime(data['date_crawled'], errors='coerce').dt.strftime('%Y-%m-%d')
+
                 articles = []
                 article_locations = []
                 article_vectors = []
