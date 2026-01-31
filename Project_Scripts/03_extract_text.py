@@ -57,7 +57,7 @@ def parse_file(filename, exclude_tlds):
                     deduplicate=True,
                     output_format="json",
                     with_metadata=True,
-                    target_language="de"
+                    # target_language removed - accepting all languages
                 )
                 if extracted:
                     root = json.loads(extracted)
