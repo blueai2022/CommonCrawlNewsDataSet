@@ -13,6 +13,7 @@ import trafilatura
 import json
 from urllib.parse import urlparse
 from argparse import ArgumentParser
+from functools import partial
 
 # Configure logging
 logging.basicConfig(
@@ -39,7 +40,13 @@ def parse_file(filename, exclude_tlds):
     try:
         data = pd.read_feather(filename)
         data["TLD"] = data["URL"].apply(extract_top_level_domain)
-        data = data[~data["TLD"].isin(exclude_tlds["Country Code"])]
+        
+        # Only filter if exclusion list is not empty
+        if len(exclude_tlds) > 0 and "Country Code" in exclude_tlds.columns:
+            data = data[~data["TLD"].isin(exclude_tlds["Country Code"])]
+        else:
+            logging.info(f"No TLD filtering applied (empty exclusion list)")
+        
         data = data.reset_index(drop=True)
 
         for _, row in tqdm(data.iterrows(), total=len(data), desc=f"Processing {os.path.basename(filename)}", leave=False):
@@ -73,10 +80,15 @@ def parse_file(filename, exclude_tlds):
             output_df = pd.DataFrame(rows).dropna(subset=["text"]).drop_duplicates(subset=["text", "hostname"])
             output_file = filename.replace(".feather", "_processed.feather")
             output_df.to_feather(output_file)
-            logging.info(f"Saved processed file: {output_file}")
+            logging.info(f"Saved processed file: {output_file} ({len(output_df)} articles)")
+            return True
+        else:
+            logging.warning(f"No valid articles extracted from {filename}")
+            return False
 
     except Exception as e:
         logging.error(f"Error processing file {filename}: {e}")
+        return False
 
 def main(folder, tlds_file):
     """Main function to process all feather files in the given folder."""
@@ -85,16 +97,21 @@ def main(folder, tlds_file):
         return
 
     exclude_tlds = pd.read_excel(tlds_file)
-    files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".feather")]
+    files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".feather") and not f.endswith("_processed.feather")]
 
     if not files:
         logging.warning(f"No feather files found in folder: {folder}")
         return
 
     logging.info(f"Processing {len(files)} files from folder: {folder}")
+    logging.info(f"TLD exclusions: {len(exclude_tlds)} entries")
+    
+    # Use partial to create a picklable function
+    parse_with_tlds = partial(parse_file, exclude_tlds=exclude_tlds)
+    
     with multiprocessing.Pool(processes=os.cpu_count()) as pool:
         with tqdm(total=len(files), desc="Overall Progress") as pbar:
-            for _ in pool.imap_unordered(lambda f: parse_file(f, exclude_tlds), files):
+            for result in pool.imap_unordered(parse_with_tlds, files):
                 pbar.update()
 
 if __name__ == "__main__":
