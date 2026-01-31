@@ -85,11 +85,11 @@ def main():
     for idx, row in geomap.iterrows():
         try:
             location = geocode(row["loc_normal"] + ", Germany")
+
             if location:
                 geomap.at[idx, "latitude"] = location.latitude
                 geomap.at[idx, "longitude"] = location.longitude
             else:
-                # mark failures however you prefer
                 geomap.at[idx, "latitude"] = None
                 geomap.at[idx, "longitude"] = None
         except Exception as e:
@@ -99,6 +99,10 @@ def main():
 
     # Now you can save or continue with your spatial join…
     geomap.to_excel('/data/CommonCrawl/news/geomap.xlsx', index=False)
+    geomap.to_csv('/data/CommonCrawl/news/geomap.csv', index=False)
+    print("✅ Saved geomap to:")
+    print("   Excel: /data/CommonCrawl/news/geomap.xlsx")
+    print("   CSV: /data/CommonCrawl/news/geomap.csv")
 
 if __name__ == "__main__":
     main()
