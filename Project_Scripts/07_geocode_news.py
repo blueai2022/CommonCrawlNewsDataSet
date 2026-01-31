@@ -5,6 +5,8 @@ from multiprocessing import Pool
 from glob import glob
 from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
+import sys
+import os
 
 # Function to read and process feather files
 def read_feather(file_path):
@@ -21,8 +23,25 @@ def read_feather(file_path):
 
 # Main function for processing feather files and creating geomap
 def main():
-    # Collect all feather files from the folder with NER data
-    files = glob(r".\\04_German_News_ner\\*.feather")
+    # If no arguments, search for all 06_ner folders automatically
+    if len(sys.argv) < 2:
+        base_path = "/data/CommonCrawl/news"
+        ner_folders = glob(os.path.join(base_path, "*/06_ner"))
+        if not ner_folders:
+            print(f"❌ No 06_ner folders found in {base_path}")
+            sys.exit(1)
+        print(f"📂 Auto-detected {len(ner_folders)} NER folders")
+    else:
+        # Use provided arguments
+        ner_folders = sys.argv[1:]
+    
+    # Collect all feather files
+    files = []
+    for folder in ner_folders:
+        pattern = os.path.join(folder, "*.feather")
+        found = glob(pattern)
+        files.extend(found)
+        print(f"   Found {len(found)} files in {folder}")
 
     # Number of processes to use (adjust according to your system's capabilities)
     num_processes = min(60, len(files))  # Ensure it does not exceed available CPUs
