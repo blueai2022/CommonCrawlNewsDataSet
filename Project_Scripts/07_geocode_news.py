@@ -162,7 +162,7 @@ def main():
     print(f"🔍 Geocoding {len(geomap)} locations...")
     for idx, row in tqdm(geomap.iterrows(), total=len(geomap), desc="Geocoding"):
         try:
-            location = geocode(row["loc_normal"] + ", Germany")
+            location = geocode(row["loc_normal"] + ", France")
 
             if location:
                 geomap.at[idx, "latitude"] = location.latitude
