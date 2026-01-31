@@ -11,7 +11,7 @@ print(f"   Total locations: {len(df)}")
 print(f"   With coordinates: {df['latitude'].notna().sum()}")
 
 # Load NUTS shapefile
-nuts_file = "/workspaces/CommonCrawlNewsDataSet/data/nuts/nuts_2021.geojson"
+nuts_file = "/home/ubuntu/CommonCrawlNewsDataSet/data/nuts/nuts_2021.geojson"
 print(f"\n🗺️  Loading NUTS shapefile from {nuts_file}...")
 
 try:
