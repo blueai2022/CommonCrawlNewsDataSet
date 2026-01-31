@@ -98,7 +98,7 @@ def main():
             geomap.at[idx, "longitude"] = None
 
     # Now you can save or continue with your spatial join…
-    geomap.to_excel(r'.\geomap.xlsx', index=False)
+    geomap.to_excel('/data/CommonCrawl/news/geomap.xlsx', index=False)
 
 if __name__ == "__main__":
     main()
