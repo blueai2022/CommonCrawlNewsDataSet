@@ -115,7 +115,7 @@ def load_and_insert_metadata(directory: str, location_map: Dict[str, int], curso
 
                 # Ensure 'loc_normal' exists and is cleaned properly
                 data["loc_normal"] = data["loc_normal"].fillna("").astype(str).str.lower()
-                data["loc_normal"] = data["loc_normal"].apply(lambda x: re.sub(r"[^a-zäöüß ']", "", x).strip())
+                data["loc_normal"] = data["loc_normal"].apply(lambda x: re.sub(r'\s+', ' ', re.sub(r"[^\w\s'\-]", "", x, flags=re.UNICODE).strip()))
 
                 # Convert datetime columns to strings for SQLite compatibility
                 if 'date' in data.columns:
