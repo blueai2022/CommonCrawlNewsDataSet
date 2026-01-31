@@ -10,6 +10,7 @@ import pandas as pd
 from glob import glob
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
+from functools import partial
 import spacy
 import re
 from argparse import ArgumentParser
@@ -59,9 +60,11 @@ def get_entities(filepath, nlp, out_folder):
         out_filepath = os.path.join(out_folder, os.path.basename(filepath))
         data.to_feather(out_filepath)
         logging.info(f"Saved: {out_filepath}")
+        return True
 
     except Exception as e:
         logging.error(f"Error processing file {filepath}: {e}")
+        return False
 
 def main(input_folder, output_folder, model_path):
     """Main function to perform NER on all files."""
@@ -74,15 +77,27 @@ def main(input_folder, output_folder, model_path):
         return
 
     os.makedirs(output_folder, exist_ok=True)
+    
+    logging.info(f"Loading spaCy model from: {model_path}")
     nlp = spacy.load(model_path)
+    logging.info(f"Model loaded successfully. Pipeline: {nlp.pipe_names}")
 
     logging.info(f"Starting NER processing on {len(files_to_process)} files.")
-    process_func = lambda filepath: get_entities(filepath, nlp, output_folder)
+    
+    # Use partial instead of lambda for picklability
+    process_func = partial(get_entities, nlp=nlp, out_folder=output_folder)
 
     # Use multiprocessing for efficient processing
-    with Pool(processes=min(len(files_to_process), cpu_count())) as pool:
-        for _ in tqdm(pool.imap_unordered(process_func, files_to_process), total=len(files_to_process), desc="Processing files"):
-            pass
+    num_processes = min(len(files_to_process), cpu_count())
+    with Pool(processes=num_processes) as pool:
+        results = list(tqdm(
+            pool.imap_unordered(process_func, files_to_process), 
+            total=len(files_to_process), 
+            desc="Processing files"
+        ))
+    
+    successful = sum(results)
+    logging.info(f"Completed: {successful}/{len(files_to_process)} files processed successfully")
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Perform Named Entity Recognition (NER) on news articles.")
