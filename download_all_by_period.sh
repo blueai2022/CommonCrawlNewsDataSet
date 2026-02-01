@@ -20,17 +20,25 @@ echo "📊 Mode: Download ALL available files"
 echo "💾 Download location: $BASE_PATH"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "⚠️  WARNING: This will download ALL files for the period!"
-echo "   Estimated: ~500-800 MB per file × ~30-50 files per month"
-echo "   Total storage needed: ~30-80 GB for 2 months"
-echo ""
-read -p "Continue? (y/n): " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Cancelled."
-    exit 0
+
+# Skip confirmation if running non-interactively (e.g., with nohup)
+if [ -t 0 ]; then
+    echo "⚠️  WARNING: This will download ALL files for the period!"
+    echo "   Estimated: ~500-800 MB per file × ~30-50 files per month"
+    echo "   Total storage needed: ~30-80 GB for 2 months"
+    echo ""
+    read -p "Continue? (y/n): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Cancelled."
+        exit 0
+    fi
+    echo ""
+else
+    echo "ℹ️  Running non-interactively (nohup/background mode)"
+    echo "   Auto-starting download..."
+    echo ""
 fi
-echo ""
 
 total_months=0
 total_downloaded=0
@@ -81,7 +89,7 @@ while [ "$current_year" -le "$END_YEAR" ]; do
         echo "📥 Starting download of ALL files..."
         echo ""
         
-        # Download ALL files (changed from loop 1-2 to all files)
+        # Download ALL files
         file_counter=0
         while IFS= read -r file_path; do
             file_counter=$((file_counter + 1))
@@ -149,5 +157,4 @@ echo ""
 echo "   2. Or process manually for each month:"
 echo "      cd Project_Scripts"
 echo "      python 02_extract_newscrawl.py /data/CommonCrawl/news/$month_dir/warc"
-echo "      # ... etc"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
