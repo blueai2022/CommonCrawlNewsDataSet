@@ -83,8 +83,9 @@ if __name__ == '__main__':
         exit(1)
 
     # Use a multiprocessing Pool to process files concurrently
-    # Limit to 2-4 processes to avoid I/O bottleneck
-    num_processes = min(4, os.cpu_count())
+    # OPTIMIZED: Use only 2 processes to prevent multiple instance conflicts
+    # With 8 vCPUs and large WARC files (500-800MB), 2 processes is optimal
+    num_processes = min(2, os.cpu_count())
     logging.info(f"Found {len(files)} WARC files. Using {num_processes} processes...")
     
     with Pool(processes=num_processes) as pool:
