@@ -56,10 +56,14 @@ def get_entities(filepath, model_path, out_folder):
             # Normalize ALL locations (not just first)
             normalized_locs = []
             for loc in locations:
-                # Keep French characters: àâäçèéêëîïôùûüÿæœ
-                normalized = re.sub(r"[^a-zA-Zàâäçèéêëîïôùûüÿæœ'\- ]", "", str(loc)).lower().strip()
-                normalized = re.sub(r'\s+', ' ', normalized)  # Collapse multiple spaces
-                if normalized:
+                # Keep ALL letters (Unicode \w includes accented chars), spaces, hyphens, apostrophes
+                # Remove numbers, punctuation, but KEEP accented letters
+                normalized = re.sub(r'[^\w\s\'-]', '', str(loc), flags=re.UNICODE)
+                normalized = re.sub(r'\s+', ' ', normalized.lower().strip())  # Collapse spaces, lowercase
+                normalized = re.sub(r'-+', '-', normalized)  # Collapse hyphens
+                normalized = re.sub(r"'+", "'", normalized)  # Collapse apostrophes
+                
+                if normalized and len(normalized) > 1:  # Skip single chars
                     normalized_locs.append(normalized)
             ents_loc_normal.append(normalized_locs)
 
