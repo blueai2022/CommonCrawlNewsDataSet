@@ -381,24 +381,47 @@ def main():
     if geocode_stats['attempted'] > 0:
         print(f"   Success rate:                {geocode_stats['success']/geocode_stats['attempted']*100:.1f}%")
 
-    # Add NUTS codes (NEW - single function call)
-    print()
-    geomap = add_nuts_codes(geomap)
+    # NEW: Save filtered locations for transparency before cleanup
+    filtered_locs = geomap[geomap['latitude'].isna()].copy()
+    if len(filtered_locs) > 0:
+        filtered_locs['filter_reason'] = 'Outside France bounds or geocoding failed'
+        filtered_locs = filtered_locs[['loc_normal', 'count', 'filter_reason']]
+        filtered_locs = filtered_locs.sort_values('count', ascending=False)
+        
+        print(f"\n💾 Saving filtered locations log...")
+        filtered_locs.to_csv('/data/CommonCrawl/news/filtered_locations.csv', index=False)
+        print(f"   ✅ Saved {len(filtered_locs)} filtered locations to filtered_locations.csv")
+        print(f"\n   Top filtered locations:")
+        print(filtered_locs.head(10).to_string(index=False))
 
-    # Now you can save or continue with your spatial join…
+    # NEW: Remove locations without coordinates (cleanup)
+    print(f"\n🧹 Cleaning geomap...")
+    print(f"   Before cleanup: {len(geomap)} locations")
+    geomap_clean = geomap[geomap['latitude'].notna()].copy()
+    print(f"   After cleanup:  {len(geomap_clean)} locations")
+    print(f"   Removed:        {len(geomap) - len(geomap_clean)} locations without valid coordinates")
+
+    # Add NUTS codes to clean geomap only
     print()
-    geomap.to_excel('/data/CommonCrawl/news/geomap.xlsx', index=False)
-    geomap.to_csv('/data/CommonCrawl/news/geomap.csv', index=False)
-    print("✅ Saved geomap to:")
+    geomap_clean = add_nuts_codes(geomap_clean)
+
+    # Save clean geomap (production-ready)
+    print()
+    geomap_clean.to_excel('/data/CommonCrawl/news/geomap.xlsx', index=False)
+    geomap_clean.to_csv('/data/CommonCrawl/news/geomap.csv', index=False)
+    print("✅ Saved clean geomap to:")
     print("   Excel: /data/CommonCrawl/news/geomap.xlsx")
     print("   CSV: /data/CommonCrawl/news/geomap.csv")
     
     # Show summary
     print()
-    print("📊 Geomap Summary:")
-    print(f"   Total locations: {len(geomap)}")
-    print(f"   With coordinates: {geomap['latitude'].notna().sum()}")
-    print(f"   With NUTS codes: {geomap['NUTS'].notna().sum()}")
+    print("📊 Final Geomap Summary:")
+    print(f"   Total locations:         {len(geomap_clean)}")
+    print(f"   All have coordinates:    {geomap_clean['latitude'].notna().sum()} ✅")
+    print(f"   With NUTS codes:         {geomap_clean['NUTS'].notna().sum()}")
+    print()
+    print(f"   Filtered locations saved separately in filtered_locations.csv")
+    print(f"   (for transparency and debugging)")
 
 if __name__ == "__main__":
     main()
