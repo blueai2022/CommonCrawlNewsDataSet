@@ -68,7 +68,11 @@ def main(input_folder, output_folder):
     process_func = partial(process_and_save_file, save_dir=output_folder)
 
     # Use multiprocessing for efficient processing
-    with Pool(processes=min(len(files_to_process), cpu_count())) as pool:
+    # Limit to 8 processes for CPU-bound filtering operations
+    num_processes = min(len(files_to_process), 8)
+    logging.info(f"Using {num_processes} processes for filtering")
+    
+    with Pool(processes=num_processes) as pool:
         for _ in tqdm(pool.imap_unordered(process_func, files_to_process), total=len(files_to_process), desc="Processing files"):
             pass
 

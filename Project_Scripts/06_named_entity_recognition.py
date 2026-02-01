@@ -47,8 +47,10 @@ def get_entities(filepath, model_path, out_folder):
         ents_loc = []
         ents_loc_normal = []
 
+        logging.info(f"Processing {len(data)} articles from {os.path.basename(filepath)}...")
+
         # Process each text and extract entities
-        for text in tqdm(data["text"], desc=f"Processing {os.path.basename(filepath)}", leave=False):
+        for text in data["text"]:
             doc = nlp(text)
             locations = [ent.text for ent in doc.ents if ent.label_ == 'LOC']
             ents_loc.append(locations)
@@ -105,7 +107,7 @@ def main(input_folder, output_folder, model_path):
     process_func = partial(get_entities, model_path=model_path, out_folder=output_folder)
 
     # Use multiprocessing for efficient processing
-    num_processes = min(len(files_to_process), cpu_count())
+    num_processes = min(len(files_to_process), 4)  # Max 4 for spaCy
     with Pool(processes=num_processes) as pool:
         results = list(tqdm(
             pool.imap_unordered(process_func, files_to_process), 
