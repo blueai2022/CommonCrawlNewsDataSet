@@ -140,9 +140,36 @@ def main():
 
     # Group by normalized location and filter by occurrence count
     geomap = combined_df.groupby("loc_normal").size().reset_index(name="count")
-    geomap = geomap[geomap["count"] > 100]
+    
+    # Show distribution before filtering
+    print(f"\n📊 Location count distribution:")
+    print(f"   Total unique locations: {len(geomap)}")
+    print(geomap.nlargest(20, 'count')[['loc_normal', 'count']].to_string(index=False))
+    
+    # Adaptive threshold based on dataset size
+    total_articles = len(combined_df)
+    if total_articles < 1000:
+        threshold = 2  # Small dataset - geocode locations appearing 2+ times
+        print(f"\n📉 Small dataset detected ({total_articles} location mentions)")
+    elif total_articles < 10000:
+        threshold = 10
+        print(f"\n📊 Medium dataset detected ({total_articles} location mentions)")
+    else:
+        threshold = 100
+        print(f"\n📈 Large dataset detected ({total_articles} location mentions)")
+    
+    print(f"   Using threshold: count > {threshold}")
+    geomap = geomap[geomap["count"] > threshold]
+    
+    if len(geomap) == 0:
+        print(f"\n❌ No locations remaining after filtering!")
+        print(f"   All locations appear ≤{threshold} times")
+        print(f"   Processing with threshold=1 instead...")
+        geomap = combined_df.groupby("loc_normal").size().reset_index(name="count")
+    
+    print(f"   Locations to geocode: {len(geomap)}")
 
-    #Initialize Geolocator
+    # Initialize Geolocator
     geolocator = Nominatim(user_agent="ADD_USERNAME_HERE", timeout=10)
 
     # RateLimiter: 1 call/sec, with up to 3 retries on failure and exponential back-off
