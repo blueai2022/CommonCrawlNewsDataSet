@@ -239,8 +239,9 @@ def main():
         files.extend(found)
         print(f"   Found {len(found)} files in {folder}")
 
-    # Limit processes for I/O-bound file reading
-    num_processes = min(8, len(files))
+    # OPTIMIZED: Use 2 workers to prevent I/O contention
+    # File reading is I/O-bound on network storage, 2 workers = optimal throughput
+    num_processes = min(2, len(files))
     print(f"📖 Reading {len(files)} files using {num_processes} processes...")
 
     # Create a pool of workers for parallel processing

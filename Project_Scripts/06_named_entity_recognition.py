@@ -106,8 +106,13 @@ def main(input_folder, output_folder, model_path):
     # Pass model_path (string) not model object - each worker loads it
     process_func = partial(get_entities, model_path=model_path, out_folder=output_folder)
 
-    # Use multiprocessing for efficient processing
-    num_processes = min(len(files_to_process), 4)  # Max 4 for spaCy
+    # OPTIMIZED: Use 2 workers to prevent I/O contention
+    # spaCy NER is CPU-intensive (ML model), but loading large spaCy models (500MB+)
+    # and reading/writing feather files on network storage creates memory + I/O pressure
+    # 2 workers = each gets ~2GB for spaCy model + 4 vCPU threads, no I/O contention
+    num_processes = min(len(files_to_process), 2)
+    logging.info(f"Using {num_processes} processes for NER")
+    
     with Pool(processes=num_processes) as pool:
         results = list(tqdm(
             pool.imap_unordered(process_func, files_to_process), 
