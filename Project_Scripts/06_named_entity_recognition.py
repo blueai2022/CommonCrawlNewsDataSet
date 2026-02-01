@@ -46,19 +46,13 @@ def get_entities(filepath, model_path, out_folder):
 
         ents_loc = []
         ents_loc_normal = []
-        ents_country = []           # NEW: Store country entities
-        ents_country_normal = []    # NEW: Store normalized countries
 
         logging.info(f"Processing {len(data)} articles from {os.path.basename(filepath)}...")
 
         # Process each text and extract entities
         for text in data["text"]:
             doc = nlp(text)
-            
-            # Extract both location types
             locations = [ent.text for ent in doc.ents if ent.label_ == 'LOC']
-            countries = [ent.text for ent in doc.ents if ent.label_ == 'GPE']  # NEW
-            
             ents_loc.append(locations)
             
             # Normalize ALL locations (not just first)
@@ -74,30 +68,14 @@ def get_entities(filepath, model_path, out_folder):
                 if normalized and len(normalized) > 1:  # Skip single chars
                     normalized_locs.append(normalized)
             ents_loc_normal.append(normalized_locs)
-            
-            # NEW: Normalize countries the same way
-            normalized_countries = []
-            for country in countries:
-                normalized = re.sub(r'[^\w\s\'-]', '', str(country), flags=re.UNICODE)
-                normalized = re.sub(r'\s+', ' ', normalized.lower().strip())
-                normalized = re.sub(r'-+', '-', normalized)
-                normalized = re.sub(r"'+", "'", normalized)
-                
-                if normalized and len(normalized) > 1:
-                    normalized_countries.append(normalized)
-            ents_country.append(countries)
-            ents_country_normal.append(normalized_countries)
 
         # Add extracted entities to the DataFrame
         data["loc"] = ents_loc
         data["loc_normal"] = ents_loc_normal
-        data["country"] = ents_country              # NEW
-        data["country_normal"] = ents_country_normal  # NEW
 
         # Select relevant columns
         data = data[['date', 'url', 'id', 'excerpt', 'tags',
-                     'categories', 'title', 'text', 'hostname', 'date_crawled', 
-                     "loc", "loc_normal", "country", "country_normal"]]  # UPDATED
+                     'categories', 'title', 'text', 'hostname', 'date_crawled', "loc", "loc_normal"]]
         data.reset_index(drop=True, inplace=True)
 
         # Save the processed file
