@@ -47,7 +47,7 @@ def get_entities(filepath, nlp, out_folder):
         # Process each text and extract entities
         for text in tqdm(data["text"], desc=f"Processing {os.path.basename(filepath)}", leave=False):
             doc = nlp(text)
-            locations = [ent.text for ent in doc.ents if ent.label_ == 'city_names']
+            locations = [ent.text for ent in doc.ents if ent.label_ == 'LOC']
             ents_loc.append(locations)
             
             # NEW: Create normalized version
