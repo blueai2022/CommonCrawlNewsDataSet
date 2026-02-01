@@ -354,7 +354,8 @@ def main():
     for idx, row in tqdm(geomap.iterrows(), total=len(geomap), desc="Geocoding"):
         try:
             geocode_stats['attempted'] += 1  # NEW
-            location = geocode(row["loc_normal"] + ", France")
+            # FIXED: Don't append ", France" - let geocoder find actual location
+            location = geocode(row["loc_normal"])
 
             # MODIFIED: Apply Layer 2 - Geocode confidence filter
             if filter_geocode_confidence(location):
@@ -362,6 +363,7 @@ def main():
                 geomap.at[idx, "longitude"] = location.longitude
                 geocode_stats['success'] += 1  # NEW
             else:
+                # Location is outside France bounds - filtered out
                 geocode_stats['filtered_confidence'] += 1  # NEW
                 geomap.at[idx, "latitude"] = None
                 geomap.at[idx, "longitude"] = None
