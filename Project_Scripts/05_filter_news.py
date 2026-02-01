@@ -67,9 +67,10 @@ def main(input_folder, output_folder):
     logging.info(f"Found {len(files_to_process)} files to process.")
     process_func = partial(process_and_save_file, save_dir=output_folder)
 
-    # Use multiprocessing for efficient processing
-    # Limit to 8 processes for CPU-bound filtering operations
-    num_processes = min(len(files_to_process), 8)
+    # OPTIMIZED: Use 2 workers to prevent I/O contention
+    # Filtering is lightweight (pandas operations), but reading/writing large feather files
+    # on network storage creates I/O bottleneck. 2 workers = optimal throughput on vCPUs
+    num_processes = min(len(files_to_process), 2)
     logging.info(f"Using {num_processes} processes for filtering")
     
     with Pool(processes=num_processes) as pool:
