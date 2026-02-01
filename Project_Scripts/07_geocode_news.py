@@ -75,21 +75,21 @@ def add_nuts_codes(geomap):
     geomap['NUTS'] = None
     geomap['GEN'] = None
     
-    # Match coordinates to NUTS regions
+    # Match coordinates to NUTS regions using itertuples (faster than iterrows)
     print(f"📍 Matching coordinates to NUTS regions...")
     matched = 0
     
-    for idx, row in tqdm(geomap.iterrows(), total=len(geomap), desc="NUTS matching"):
-        if pd.notna(row['latitude']) and pd.notna(row['longitude']):
+    for row in tqdm(geomap.itertuples(), total=len(geomap), desc="NUTS matching"):
+        if pd.notna(row.latitude) and pd.notna(row.longitude):
             try:
-                point = Point(row['longitude'], row['latitude'])
+                point = Point(row.longitude, row.latitude)
                 matches = nuts_gdf[nuts_gdf.geometry.contains(point)]
                 
                 if len(matches) > 0:
                     # Get most detailed region (highest NUTS level)
                     best_match = matches.sort_values('LEVL_CODE', ascending=False).iloc[0]
-                    geomap.at[idx, 'NUTS'] = best_match['NUTS_ID']
-                    geomap.at[idx, 'GEN'] = best_match['NUTS_NAME']
+                    geomap.at[row.Index, 'NUTS'] = best_match['NUTS_ID']
+                    geomap.at[row.Index, 'GEN'] = best_match['NUTS_NAME']
                     matched += 1
             except Exception as e:
                 continue
@@ -120,8 +120,9 @@ def main():
         files.extend(found)
         print(f"   Found {len(found)} files in {folder}")
 
-    # Number of processes to use (adjust according to your system's capabilities)
-    num_processes = min(60, len(files))  # Ensure it does not exceed available CPUs
+    # Limit processes for I/O-bound file reading
+    num_processes = min(8, len(files))
+    print(f"📖 Reading {len(files)} files using {num_processes} processes...")
 
     # Create a pool of workers for parallel processing
     with Pool(processes=num_processes) as pool:
@@ -131,15 +132,14 @@ def main():
     # Concatenate all DataFrames into one large DataFrame
     combined_df = pd.concat(dataframes, ignore_index=True)
 
-    # Process and clean location data
-    # First, create a mapping of original to normalized locations
+    # Process and clean location data using itertuples (faster than iterrows)
+    print(f"🔄 Expanding location arrays...")
     rows = []
-    for idx, row in combined_df.iterrows():
-        locs = row['loc'] if hasattr(row['loc'], '__len__') else []
-        locs_norm = row['loc_normal'] if hasattr(row['loc_normal'], '__len__') else []
+    for row in tqdm(combined_df.itertuples(), total=len(combined_df), desc="Expanding locations"):
+        locs = row.loc if hasattr(row.loc, '__len__') else []
+        locs_norm = row.loc_normal if hasattr(row.loc_normal, '__len__') else []
         
         # Match each normalized location with its original
-        # (they should align, but handle mismatches gracefully)
         for i, norm_loc in enumerate(locs_norm):
             if norm_loc and len(str(norm_loc)) > 1:
                 rows.append({
@@ -153,6 +153,7 @@ def main():
     
     # Filter out empty normalized locations
     combined_df = combined_df[combined_df["loc_normal"].str.len() > 1]
+    print(f"✅ Expanded to {len(combined_df)} location mentions")
 
     # Group by normalized location and filter by occurrence count
     geomap = combined_df.groupby("loc_normal").size().reset_index(name="count")
@@ -201,8 +202,8 @@ def main():
     geomap["latitude"] = None
     geomap["longitude"] = None
 
-    # Iterate over each place name and geocode
-    print(f"🔍 Geocoding {len(geomap)} locations...")
+    # Iterate over each place name and geocode (must be serial due to rate limits)
+    print(f"\n🔍 Geocoding {len(geomap)} locations...")
     for idx, row in tqdm(geomap.iterrows(), total=len(geomap), desc="Geocoding"):
         try:
             location = geocode(row["loc_normal"] + ", France")
