@@ -132,8 +132,24 @@ def main():
     combined_df = pd.concat(dataframes, ignore_index=True)
 
     # Process and clean location data
-    # Explode BOTH loc and loc_normal together
-    combined_df = combined_df.explode(["loc", "loc_normal"]).dropna(subset=["loc_normal"])
+    # First, create a mapping of original to normalized locations
+    rows = []
+    for idx, row in combined_df.iterrows():
+        locs = row['loc'] if hasattr(row['loc'], '__len__') else []
+        locs_norm = row['loc_normal'] if hasattr(row['loc_normal'], '__len__') else []
+        
+        # Match each normalized location with its original
+        # (they should align, but handle mismatches gracefully)
+        for i, norm_loc in enumerate(locs_norm):
+            if norm_loc and len(str(norm_loc)) > 1:
+                rows.append({
+                    'loc': locs[i] if i < len(locs) else norm_loc,
+                    'loc_normal': norm_loc
+                })
+    
+    # Create new DataFrame from expanded rows
+    combined_df = pd.DataFrame(rows)
+    combined_df = combined_df.dropna(subset=["loc_normal"])
     
     # Filter out empty normalized locations
     combined_df = combined_df[combined_df["loc_normal"].str.len() > 1]
