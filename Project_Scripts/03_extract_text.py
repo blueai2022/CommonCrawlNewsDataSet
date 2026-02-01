@@ -106,17 +106,20 @@ def main(folder, tlds_file):
     logging.info(f"Processing {len(files)} files from folder: {folder}")
     logging.info(f"TLD exclusions: {len(exclude_tlds)} entries")
     
-    # Limit processes for CPU-intensive Trafilatura extraction
-    # 4-6 processes is optimal for text extraction (CPU-bound)
-    num_processes = min(6, multiprocessing.cpu_count())
+    # OPTIMIZED: Reduce to 2 processes to prevent I/O contention
+    # Text extraction involves heavy I/O (reading large feathers + writing processed files)
+    # On vCPUs with shared disk, fewer processes = better throughput
+    num_processes = min(2, multiprocessing.cpu_count())
     logging.info(f"Using {num_processes} processes for text extraction")
     
     # Use partial to create a picklable function
     parse_with_tlds = partial(parse_file, exclude_tlds=exclude_tlds)
     
+    # Use imap instead of imap_unordered for better progress tracking
+    # and to avoid pool starvation on large files
     with multiprocessing.Pool(processes=num_processes) as pool:
         with tqdm(total=len(files), desc="Overall Progress") as pbar:
-            for result in pool.imap_unordered(parse_with_tlds, files):
+            for result in pool.imap(parse_with_tlds, files, chunksize=1):
                 pbar.update()
 
 if __name__ == "__main__":
