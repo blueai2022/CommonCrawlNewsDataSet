@@ -8,6 +8,115 @@ from geopy.extra.rate_limiter import RateLimiter
 import sys
 import os
 
+# ═══════════════════════════════════════════════════════════════════════════
+# FILTER CONFIGURATION - Toggle filters on/off
+# ═══════════════════════════════════════════════════════════════════════════
+ENABLE_NON_FRANCE_FILTER = True      # Layer 1: Filter non-French country indicators
+ENABLE_GEOCODE_CONFIDENCE = True     # Layer 2: Validate geocoded coordinates in France
+ENABLE_STOPWORD_FILTER = True        # Layer 3: Filter common words (not places)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FILTER LAYER 1: Non-French Country Indicators
+# ═══════════════════════════════════════════════════════════════════════════
+NON_FRANCE_INDICATORS = {
+    'syrie', 'syria', 'irak', 'iraq', 'iran', 'israël', 'israel',
+    'palestine', 'liban', 'lebanon', 'jordanie', 'jordan',
+    'arabie saoudite', 'saudi arabia', 'yémen', 'yemen',
+    'allemagne', 'germany', 'italie', 'italy', 'espagne', 'spain',
+    'royaume-uni', 'united kingdom', 'angleterre', 'england',
+    'belgique', 'belgium', 'pays-bas', 'netherlands', 'hollande',
+    'suisse', 'switzerland', 'portugal', 'grèce', 'greece',
+    'turquie', 'turkey', 'russie', 'russia', 'pologne', 'poland',
+    'ukraine', 'autriche', 'austria',
+    'états-unis', 'etats-unis', 'united states', 'usa', 'amérique', 'america',
+    'canada', 'mexique', 'mexico', 'brésil', 'brazil', 'argentine', 'argentina',
+    'chine', 'china', 'japon', 'japan', 'inde', 'india',
+    'corée', 'korea', 'thaïlande', 'thailand', 'vietnam',
+    'égypte', 'egypt', 'maroc', 'morocco', 'algérie', 'algeria',
+    'tunisie', 'tunisia', 'libye', 'libya', 'afrique du sud', 'south africa',
+    'australie', 'australia',
+}
+
+def filter_non_france_endings(loc_normal):
+    """
+    Check if location ends with or is a non-French country.
+    Returns True if should be KEPT, False if should be FILTERED OUT.
+    """
+    if not ENABLE_NON_FRANCE_FILTER:
+        return True
+    
+    loc_clean = str(loc_normal).lower().strip()
+    
+    # Exact match - location IS a country name
+    if loc_clean in NON_FRANCE_INDICATORS:
+        return False
+    
+    # Check for ", country" or " country" at end
+    for country in NON_FRANCE_INDICATORS:
+        if loc_clean.endswith(f', {country}') or loc_clean.endswith(f' {country}'):
+            return False
+    
+    return True
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FILTER LAYER 2: Geocoding Confidence (France Bounding Box)
+# ═══════════════════════════════════════════════════════════════════════════
+FRANCE_BOUNDS = {
+    'lat_min': 41.0, 'lat_max': 51.5,   # Corsica to northern border
+    'lon_min': -5.5, 'lon_max': 10.0,   # Western to eastern France
+}
+
+def filter_geocode_confidence(location):
+    """
+    Check if geocoded location is within France bounds.
+    Returns True if should be KEPT, False if should be FILTERED OUT.
+    """
+    if not ENABLE_GEOCODE_CONFIDENCE:
+        return True
+    
+    if location is None:
+        return False
+    
+    lat, lon = location.latitude, location.longitude
+    
+    # Check if within France bounding box
+    in_france = (FRANCE_BOUNDS['lat_min'] <= lat <= FRANCE_BOUNDS['lat_max'] and
+                 FRANCE_BOUNDS['lon_min'] <= lon <= FRANCE_BOUNDS['lon_max'])
+    
+    return in_france
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FILTER LAYER 3: Stopwords (Exact Match Only)
+# ═══════════════════════════════════════════════════════════════════════════
+LOCATION_STOPWORDS = {
+    'américains', 'américain', 'americains', 'americain',
+    'français', 'francais', 'française', 'francaise',
+    'européens', 'européen', 'europeens', 'europeen',
+    'de france', 'la france', 'en france',
+    'du', 'de', 'la', 'le', 'les', 'des', 'un', 'une',
+    'etat', 'état', 'etats', 'états',
+    'pays', 'ville', 'région', 'region',
+    'nord', 'sud', 'est', 'ouest',
+    'monde', 'international', 'national',
+}
+
+def filter_stopwords(loc_normal):
+    """
+    Check if location is a stopword (EXACT match only, not substring).
+    Returns True if should be KEPT, False if should be FILTERED OUT.
+    """
+    if not ENABLE_STOPWORD_FILTER:
+        return True
+    
+    loc_clean = str(loc_normal).lower().strip()
+    
+    # EXACT match only (won't filter "nord-pas-de-calais")
+    return loc_clean not in LOCATION_STOPWORDS
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ORIGINAL FUNCTIONS (unchanged)
+# ═══════════════════════════════════════════════════════════════════════════
+
 # Function to read and process feather files
 def read_feather(file_path):
     """
@@ -98,8 +207,18 @@ def add_nuts_codes(geomap):
     
     return geomap
 
-# Main function for processing feather files and creating geomap
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN FUNCTION (minimal changes marked with # NEW or # MODIFIED)
+# ═══════════════════════════════════════════════════════════════════════════
+
 def main():
+    # NEW: Print active filters
+    print("🔧 Active Filter Layers:")
+    print(f"   Layer 1 - Non-France filter:  {'✅ ENABLED' if ENABLE_NON_FRANCE_FILTER else '❌ DISABLED'}")
+    print(f"   Layer 2 - Geocode confidence: {'✅ ENABLED' if ENABLE_GEOCODE_CONFIDENCE else '❌ DISABLED'}")
+    print(f"   Layer 3 - Stopword filter:    {'✅ ENABLED' if ENABLE_STOPWORD_FILTER else '❌ DISABLED'}")
+    print()
+    
     # If no arguments, search for all 06_ner folders automatically
     if len(sys.argv) < 2:
         base_path = "/data/CommonCrawl/news"
@@ -132,20 +251,45 @@ def main():
     # Concatenate all DataFrames into one large DataFrame
     combined_df = pd.concat(dataframes, ignore_index=True)
 
-    # Process and clean location data using itertuples (faster than iterrows)
-    print(f"🔄 Expanding location arrays...")
+    # MODIFIED: Process and clean location data with filters
+    print(f"🔄 Expanding location arrays (with filtering)...")
     rows = []
+    stats = {'total': 0, 'filtered_non_france': 0, 'filtered_stopwords': 0, 'kept': 0}  # NEW: Track stats
+    
     for row in tqdm(combined_df.itertuples(), total=len(combined_df), desc="Expanding locations"):
         locs = row.loc if hasattr(row.loc, '__len__') else []
         locs_norm = row.loc_normal if hasattr(row.loc_normal, '__len__') else []
         
         # Match each normalized location with its original
         for i, norm_loc in enumerate(locs_norm):
+            stats['total'] += 1  # NEW
+            
             if norm_loc and len(str(norm_loc)) > 1:
+                # NEW: Apply Layer 3 - Stopword filter
+                if not filter_stopwords(norm_loc):
+                    stats['filtered_stopwords'] += 1
+                    continue
+                
+                # NEW: Apply Layer 1 - Non-France filter
+                if not filter_non_france_endings(norm_loc):
+                    stats['filtered_non_france'] += 1
+                    continue
+                
+                # MODIFIED: Only add if passed filters
+                stats['kept'] += 1
                 rows.append({
                     'loc': locs[i] if i < len(locs) else norm_loc,
                     'loc_normal': norm_loc
                 })
+    
+    # NEW: Print filtering statistics
+    print(f"\n📊 Pre-geocoding Filter Statistics:")
+    print(f"   Total location mentions:     {stats['total']:,}")
+    print(f"   Filtered (non-France):       {stats['filtered_non_france']:,}")
+    print(f"   Filtered (stopwords):        {stats['filtered_stopwords']:,}")
+    print(f"   Kept for geocoding:          {stats['kept']:,}")
+    if stats['total'] > 0:
+        print(f"   Filter rate:                 {(stats['total']-stats['kept'])/stats['total']*100:.1f}%")
     
     # Create new DataFrame from expanded rows
     combined_df = pd.DataFrame(rows)
@@ -202,22 +346,38 @@ def main():
     geomap["latitude"] = None
     geomap["longitude"] = None
 
-    # Iterate over each place name and geocode (must be serial due to rate limits)
+    # NEW: Track geocoding statistics
+    geocode_stats = {'attempted': 0, 'success': 0, 'failed': 0, 'filtered_confidence': 0}
+
+    # MODIFIED: Iterate over each place name and geocode with confidence filtering
     print(f"\n🔍 Geocoding {len(geomap)} locations...")
     for idx, row in tqdm(geomap.iterrows(), total=len(geomap), desc="Geocoding"):
         try:
+            geocode_stats['attempted'] += 1  # NEW
             location = geocode(row["loc_normal"] + ", France")
 
-            if location:
+            # MODIFIED: Apply Layer 2 - Geocode confidence filter
+            if filter_geocode_confidence(location):
                 geomap.at[idx, "latitude"] = location.latitude
                 geomap.at[idx, "longitude"] = location.longitude
+                geocode_stats['success'] += 1  # NEW
             else:
+                geocode_stats['filtered_confidence'] += 1  # NEW
                 geomap.at[idx, "latitude"] = None
                 geomap.at[idx, "longitude"] = None
         except Exception as e:
-            print(f"Geocoding failed for {row['loc_normal']}: {e}")
+            geocode_stats['failed'] += 1  # NEW
             geomap.at[idx, "latitude"] = None
             geomap.at[idx, "longitude"] = None
+
+    # NEW: Print geocoding statistics
+    print(f"\n📊 Geocoding Statistics:")
+    print(f"   Attempted:                   {geocode_stats['attempted']:,}")
+    print(f"   Successful:                  {geocode_stats['success']:,}")
+    print(f"   Filtered (low confidence):   {geocode_stats['filtered_confidence']:,}")
+    print(f"   Failed (errors):             {geocode_stats['failed']:,}")
+    if geocode_stats['attempted'] > 0:
+        print(f"   Success rate:                {geocode_stats['success']/geocode_stats['attempted']*100:.1f}%")
 
     # Add NUTS codes (NEW - single function call)
     print()
