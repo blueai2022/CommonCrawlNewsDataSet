@@ -92,7 +92,7 @@ LOCATION_STOPWORDS = {
     'américains', 'américain', 'americains', 'americain',
     'français', 'francais', 'française', 'francaise',
     'européens', 'européen', 'europeens', 'europeen',
-    'de france', 'la france', 'en france',
+    'france', 'de france', 'la france', 'en france',
     'du', 'de', 'la', 'le', 'les', 'des', 'un', 'une',
     'etat', 'état', 'etats', 'états',
     'pays', 'ville', 'région', 'region',
