@@ -132,11 +132,11 @@ def main():
     combined_df = pd.concat(dataframes, ignore_index=True)
 
     # Process and clean location data
-    combined_df = combined_df.explode("loc").dropna(subset=["loc"])
-    combined_df["loc_normal"] = combined_df["loc"].apply(
-        lambda x: re.sub(r"[^a-zA-Zäöüß'\- ]", "", str(x).lower()).strip()
-    )
-    combined_df = combined_df[combined_df["loc_normal"] != ""]
+    # Explode BOTH loc and loc_normal together
+    combined_df = combined_df.explode(["loc", "loc_normal"]).dropna(subset=["loc_normal"])
+    
+    # Filter out empty normalized locations
+    combined_df = combined_df[combined_df["loc_normal"].str.len() > 1]
 
     # Group by normalized location and filter by occurrence count
     geomap = combined_df.groupby("loc_normal").size().reset_index(name="count")
