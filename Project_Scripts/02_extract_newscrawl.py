@@ -21,7 +21,7 @@ def extract_records(warc_file_path):
     try:
         with gzip.open(warc_file_path, 'rb') as stream:
             iterator = ArchiveIterator(stream)
-            for record in tqdm(iterator, desc=f"Extracting {os.path.basename(warc_file_path)}", leave=False):
+            for record in iterator:
                 if record.rec_type == 'response':
                     try:
                         warc_record_id = record.rec_headers.get_header('WARC-Record-ID')
@@ -83,8 +83,11 @@ if __name__ == '__main__':
         exit(1)
 
     # Use a multiprocessing Pool to process files concurrently
-    logging.info(f"Found {len(files)} WARC files. Starting extraction...")
-    with Pool(processes=os.cpu_count()) as pool:  # Use the number of CPU cores available
+    # Limit to 2-4 processes to avoid I/O bottleneck
+    num_processes = min(4, os.cpu_count())
+    logging.info(f"Found {len(files)} WARC files. Using {num_processes} processes...")
+    
+    with Pool(processes=num_processes) as pool:
         list(tqdm(pool.imap(process_warc_file, files), total=len(files), desc="Processing WARC files"))
 
     logging.info("All WARC files processed successfully.")
