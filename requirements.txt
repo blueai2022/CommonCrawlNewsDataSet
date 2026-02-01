@@ -22,3 +22,6 @@ geopy>=2.3.0
 
 # Progress bars
 tqdm>=4.65.0
+
+# Language detection for trafilatura
+py3langid>=0.2.3

@@ -8,7 +8,7 @@ import numpy as np
 conn=sqlite3.connect(DB_PATH)
 data=pd.read_sql("SELECT id, text FROM articles",conn)
 
-embedding_model=SentenceTransformer("mixedbread-ai/deepset-mxbai-embed-de-large-v1",device="cuda",model_kwargs={"torch_dtype": "float16"})
+embedding_model=SentenceTransformer("antoinelouis/biencoder-camembert-base-mmarcoFR",device="cuda",model_kwargs={"torch_dtype": "float16"})
 
 embeddings=embedding_model.encode(list(data["text"]),normalize_embeddings=True,prompt="passage: ")
 

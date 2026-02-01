@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Script for performing Named Entity Recognition (NER) on German news articles.
+Script for performing Named Entity Recognition (NER) on French news articles.
 
 Updated for improved clarity, robustness, and configurability.
 """
@@ -25,9 +25,12 @@ logging.basicConfig(
 # Pre-compiled regex for date extraction
 date_pattern = re.compile(r"\d{8}")
 
-def get_entities(filepath, nlp, out_folder):
+def get_entities(filepath, model_path, out_folder):
     """Extract named entities from a file and save results."""
     try:
+        # Load spaCy model INSIDE worker process (fixes pickle issue)
+        nlp = spacy.load(model_path)
+        
         # Load data and drop rows without text
         data = pd.read_feather(filepath).dropna(subset=["text"])
 
@@ -42,32 +45,37 @@ def get_entities(filepath, nlp, out_folder):
             data["date_crawled"] = pd.to_datetime(extracted_date)
 
         ents_loc = []
-        ents_loc_normal = []  # NEW LINE
+        ents_loc_normal = []
+
+        logging.info(f"Processing {len(data)} articles from {os.path.basename(filepath)}...")
 
         # Process each text and extract entities
-        for text in tqdm(data["text"], desc=f"Processing {os.path.basename(filepath)}", leave=False):
+        for text in data["text"]:
             doc = nlp(text)
-            locations = [ent.text for ent in doc.ents if ent.label_ == 'city_names']
+            locations = [ent.text for ent in doc.ents if ent.label_ == 'LOC']
             ents_loc.append(locations)
             
-            # NEW: Create normalized version
-            if locations:
-                first_loc = str(locations[0])
-                # Keep Unicode word characters (\w), spaces, hyphens, apostrophes; remove everything else
-                normalized = re.sub(r"[^\w\s'\-]", "", first_loc, flags=re.UNICODE).lower().strip()
-                normalized = re.sub(r'\s+', ' ', normalized)  # Collapse multiple spaces
-                ents_loc_normal.append(normalized)
-            else:
-                ents_loc_normal.append("")
-    
+            # Normalize ALL locations (not just first)
+            normalized_locs = []
+            for loc in locations:
+                # Keep ALL letters (Unicode \w includes accented chars), spaces, hyphens, apostrophes
+                # Remove numbers, punctuation, but KEEP accented letters
+                normalized = re.sub(r'[^\w\s\'-]', '', str(loc), flags=re.UNICODE)
+                normalized = re.sub(r'\s+', ' ', normalized.lower().strip())  # Collapse spaces, lowercase
+                normalized = re.sub(r'-+', '-', normalized)  # Collapse hyphens
+                normalized = re.sub(r"'+", "'", normalized)  # Collapse apostrophes
+                
+                if normalized and len(normalized) > 1:  # Skip single chars
+                    normalized_locs.append(normalized)
+            ents_loc_normal.append(normalized_locs)
 
         # Add extracted entities to the DataFrame
         data["loc"] = ents_loc
-        data["loc_normal"] = ents_loc_normal  # NEW LINE
+        data["loc_normal"] = ents_loc_normal
 
         # Select relevant columns
         data = data[['date', 'url', 'id', 'excerpt', 'tags',
-                     'categories', 'title', 'text', 'hostname', 'date_crawled', "loc", "loc_normal"]]  # ADDED loc_normal
+                     'categories', 'title', 'text', 'hostname', 'date_crawled', "loc", "loc_normal"]]
         data.reset_index(drop=True, inplace=True)
 
         # Save the processed file
@@ -92,17 +100,14 @@ def main(input_folder, output_folder, model_path):
 
     os.makedirs(output_folder, exist_ok=True)
     
-    logging.info(f"Loading spaCy model from: {model_path}")
-    nlp = spacy.load(model_path)
-    logging.info(f"Model loaded successfully. Pipeline: {nlp.pipe_names}")
-
+    logging.info(f"Will use spaCy model: {model_path}")
     logging.info(f"Starting NER processing on {len(files_to_process)} files.")
     
-    # Use partial instead of lambda for picklability
-    process_func = partial(get_entities, nlp=nlp, out_folder=output_folder)
+    # Pass model_path (string) not model object - each worker loads it
+    process_func = partial(get_entities, model_path=model_path, out_folder=output_folder)
 
     # Use multiprocessing for efficient processing
-    num_processes = min(len(files_to_process), cpu_count())
+    num_processes = min(len(files_to_process), 4)  # Max 4 for spaCy
     with Pool(processes=num_processes) as pool:
         results = list(tqdm(
             pool.imap_unordered(process_func, files_to_process), 

@@ -57,7 +57,7 @@ def parse_file(filename, exclude_tlds):
                     deduplicate=True,
                     output_format="json",
                     with_metadata=True,
-                    # target_language removed - accepting all languages
+                    target_language='fr'  # FRANCE: Only extract French language content
                 )
                 if extracted:
                     root = json.loads(extracted)
@@ -106,10 +106,15 @@ def main(folder, tlds_file):
     logging.info(f"Processing {len(files)} files from folder: {folder}")
     logging.info(f"TLD exclusions: {len(exclude_tlds)} entries")
     
+    # Limit processes for CPU-intensive Trafilatura extraction
+    # 4-6 processes is optimal for text extraction (CPU-bound)
+    num_processes = min(6, multiprocessing.cpu_count())
+    logging.info(f"Using {num_processes} processes for text extraction")
+    
     # Use partial to create a picklable function
     parse_with_tlds = partial(parse_file, exclude_tlds=exclude_tlds)
     
-    with multiprocessing.Pool(processes=os.cpu_count()) as pool:
+    with multiprocessing.Pool(processes=num_processes) as pool:
         with tqdm(total=len(files), desc="Overall Progress") as pbar:
             for result in pool.imap_unordered(parse_with_tlds, files):
                 pbar.update()

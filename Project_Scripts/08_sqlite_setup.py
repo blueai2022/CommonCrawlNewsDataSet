@@ -113,28 +113,37 @@ def load_and_insert_metadata(directory: str, location_map: Dict[str, int], curso
                 data["id"] = data["id"].apply(strip_uuid)
                 data["tld"] = data["hostname"].apply(extract_tld)
 
-                # Ensure 'loc_normal' exists and is cleaned properly
-                data["loc_normal"] = data["loc_normal"].fillna("").astype(str).str.lower()
-                data["loc_normal"] = data["loc_normal"].apply(lambda x: re.sub(r"[^a-zäöüß ']", "", x).strip())
+                # loc_normal is already an array of normalized locations from Step 06
+                # No need to re-normalize here
+                # Convert datetime columns to strings for SQLite compatibility
+                if 'date' in data.columns:
+                    data['date'] = pd.to_datetime(data['date'], errors='coerce').dt.strftime('%Y-%m-%d')
+                if 'date_crawled' in data.columns:
+                    data['date_crawled'] = pd.to_datetime(data['date_crawled'], errors='coerce').dt.strftime('%Y-%m-%d')
 
                 articles = []
                 article_locations = []
                 article_vectors = []
                 
-                for _, row in data.iterrows():
+                # Use itertuples for faster iteration (5-10x faster than iterrows)
+                for row in data.itertuples():
                     articles.append((
-                        row['id'], row['url'], row['excerpt'], row['title'], 
-                        row['text'], row['tags'], row['categories'], row['hostname'], 
-                        row.get('date', None), row.get('date_crawled', None)
+                        row.id, row.url, row.excerpt, row.title, 
+                        row.text, row.tags, row.categories, row.hostname, 
+                        getattr(row, 'date', None), getattr(row, 'date_crawled', None)
                     ))
                     
-                    location_id = location_map.get(row['loc_normal'])
-                    if location_id:
-                        article_locations.append((row['id'], location_id))
+                    # Handle loc_normal as array - match each normalized location
+                    if hasattr(row, 'loc_normal') and hasattr(row.loc_normal, '__len__'):
+                        for norm_loc in row.loc_normal:
+                            if norm_loc and len(str(norm_loc)) > 1:
+                                location_id = location_map.get(str(norm_loc).lower().strip())
+                                if location_id:
+                                    article_locations.append((row.id, location_id))
 
                     # Generate hashed ID for each article
-                    hashed_id = hash_uuid(row['id'])
-                    article_vectors.append((row['id'], hashed_id))
+                    hashed_id = hash_uuid(row.id)
+                    article_vectors.append((row.id, hashed_id))
 
                 # Perform batch inserts
                 cursor.executemany('''
