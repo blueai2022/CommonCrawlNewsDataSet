@@ -88,9 +88,11 @@ def main(input_folder, output_folder, max_processes):
         logging.warning(f"No feather files found in folder: {input_folder}")
         return
 
-    # Limit processes for quality metric computation
-    # 6-8 is optimal for CPU-bound string operations
-    num_processes = min(len(files), max_processes, 8)
+    # OPTIMIZED: Use 2 workers to prevent I/O contention
+    # Even though quality metrics are CPU-intensive (regex, string parsing),
+    # reading/writing large feather files on network storage is the bottleneck
+    # 2 workers = minimal I/O queue contention + 4 vCPU threads each
+    num_processes = min(len(files), max_processes, 2)
     logging.info(f"Found {len(files)} files. Using {num_processes} processes...")
     
     process_func = partial(process_and_save_file, save_dir=output_folder)
@@ -103,7 +105,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Compute quality metrics for news articles.")
     parser.add_argument("input_folder", type=str, help="Folder containing input feather files.")
     parser.add_argument("output_folder", type=str, help="Folder to save processed files.")
-    parser.add_argument("--max_processes", type=int, default=8, help="Maximum number of processes to use (default: 8).")
+    parser.add_argument("--max_processes", type=int, default=2, help="Maximum number of processes to use (default: 2).")
     args = parser.parse_args()
 
     main(args.input_folder, args.output_folder, args.max_processes)
