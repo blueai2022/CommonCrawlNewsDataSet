@@ -20,7 +20,7 @@ fi
 
 # Check for required files
 TLDS_FILE="$SCRIPT_DIR/tlds_exclusion.xlsx"
-SPACY_MODEL="$HOME/CommonCrawlNewsDataSet/models/LLAMA_fast_geotag/spacy_lg_geo"
+SPACY_MODEL="fr_core_news_lg"
 GEOMAP_FILE="$BASE_PATH/geomap.xlsx"
 
 if [ ! -f "$TLDS_FILE" ]; then
