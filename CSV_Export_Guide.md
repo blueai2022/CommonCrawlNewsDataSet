@@ -39,6 +39,13 @@ python3 ./dump_db_to_csv.py ./news_database_01.db ./dump
 
 This will export all database tables to CSV files in the `./dump` directory.
 
+**Note:** By default, all rows are exported. To limit the number of rows per table (useful for testing or quick exports), use the `--limit` flag:
+
+```bash
+# Export only the first 1000 rows from each table
+python3 ./dump_db_to_csv.py ./news_database_01.db ./dump --limit 1000
+```
+
 ### 4. Verify the Export
 
 Navigate to the dump directory and list the generated files:
