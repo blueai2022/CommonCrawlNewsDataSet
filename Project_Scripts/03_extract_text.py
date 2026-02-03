@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Script for extracting and processing text content from WARC files.
-OPTIMIZED: Sequential processing to avoid memory issues and hangs.
+OPTIMIZED: Streaming processing with incremental saves to prevent OOM.
 """
 import pandas as pd
 import os
@@ -10,6 +10,7 @@ import trafilatura
 import json
 from urllib.parse import urlparse
 from argparse import ArgumentParser
+import pyarrow.feather as feather
 
 # Configure logging
 logging.basicConfig(
@@ -31,9 +32,10 @@ def extract_top_level_domain(url):
         return None
 
 def process_file_sequential(filename, exclude_tlds):
-    """Process a single feather file sequentially with chunking to avoid memory issues."""
+    """Process a single feather file with streaming and incremental saves."""
     try:
         output_file = filename.replace(".feather", "_processed.feather")
+        temp_output_file = output_file.replace(".feather", "_temp.feather")
         
         # Skip if already processed
         if os.path.exists(output_file):
@@ -42,32 +44,39 @@ def process_file_sequential(filename, exclude_tlds):
         
         logging.info(f"Processing {os.path.basename(filename)}")
         
-        # Read the data
-        data = pd.read_feather(filename)
-        total_rows = len(data)
-        logging.info(f"  Loaded {total_rows:,} records")
+        # Use PyArrow to read metadata WITHOUT loading data
+        table = feather.read_table(filename)
+        total_rows = len(table)
+        logging.info(f"  Total records: {total_rows:,}")
         
-        # Apply TLD filtering
-        data["TLD"] = data["URL"].apply(extract_top_level_domain)
-        if len(exclude_tlds) > 0 and "Country Code" in exclude_tlds.columns:
-            before_filter = len(data)
-            data = data[~data["TLD"].isin(exclude_tlds["Country Code"])]
-            filtered_count = before_filter - len(data)
-            if filtered_count > 0:
-                logging.info(f"  Filtered {filtered_count:,} by TLD")
+        # Process in streaming chunks
+        CHUNK_SIZE = 5000
+        SAVE_EVERY = 10000  # Save to disk every 10k extracted records
         
-        data = data.reset_index(drop=True)
-        
-        # Process in chunks to avoid memory buildup
-        CHUNK_SIZE = 1000
         all_rows = []
-        processed_count = 0  # FIX: Track extraction count
+        processed_count = 0
+        saved_chunks = []  # Track temporary chunk files
         
-        for chunk_start in range(0, len(data), CHUNK_SIZE):
-            chunk_end = min(chunk_start + CHUNK_SIZE, len(data))
-            chunk = data.iloc[chunk_start:chunk_end]
+        for chunk_start in range(0, total_rows, CHUNK_SIZE):
+            chunk_end = min(chunk_start + CHUNK_SIZE, total_rows)
             
-            for idx, row in chunk.iterrows():
+            # Read ONLY this chunk from disk
+            chunk_table = table.slice(chunk_start, chunk_end - chunk_start)
+            chunk_data = chunk_table.to_pandas()
+            
+            # Apply TLD filtering
+            chunk_data["TLD"] = chunk_data["URL"].apply(extract_top_level_domain)
+            if len(exclude_tlds) > 0 and "Country Code" in exclude_tlds.columns:
+                before_filter = len(chunk_data)
+                chunk_data = chunk_data[~chunk_data["TLD"].isin(exclude_tlds["Country Code"])]
+                filtered_count = before_filter - len(chunk_data)
+                if filtered_count > 0 and chunk_start == 0:
+                    logging.info(f"  TLD filtering enabled ({len(exclude_tlds)} exclusions)")
+            
+            chunk_data = chunk_data.reset_index(drop=True)
+            
+            # Extract text from this chunk
+            for idx, row in chunk_data.iterrows():
                 try:
                     extracted = trafilatura.extract(
                         row["Content"],
@@ -92,32 +101,71 @@ def process_file_sequential(filename, exclude_tlds):
                             "date_crawled": root.get("filedate"),
                             "hostname": root.get("hostname")
                         })
-                        processed_count += 1  # FIX: Increment counter
+                        processed_count += 1
                 except Exception:
-                    # Silently skip problematic records (avoid log spam)
+                    # Silently skip problematic records
                     pass
             
-            # FIX: Log progress with extraction count every 5000 records
+            # Free chunk memory
+            del chunk_table, chunk_data
+            
+            # REAL FIX: Save intermediate results to disk when we accumulate too many
+            if len(all_rows) >= SAVE_EVERY or chunk_end == total_rows:
+                if all_rows:
+                    chunk_df = pd.DataFrame(all_rows).dropna(subset=["text"])
+                    chunk_file = f"{temp_output_file}.part{len(saved_chunks)}.feather"
+                    chunk_df.to_feather(chunk_file)
+                    saved_chunks.append(chunk_file)
+                    logging.info(f"  💾 Saved intermediate chunk: {len(all_rows)} rows to part{len(saved_chunks)-1}")
+                    del all_rows, chunk_df
+                    all_rows = []  # Reset for next batch
+            
+            # Log progress
             if chunk_end % 5000 == 0 or chunk_end == total_rows:
                 logging.info(f"  Progress: {chunk_end:,}/{total_rows:,} ({chunk_end*100//total_rows}%) - Extracted: {processed_count:,}")
         
-        # Save results
-        if all_rows:
-            output_df = pd.DataFrame(all_rows).dropna(subset=["text"]).drop_duplicates(subset=["text", "hostname"])
-            output_df.to_feather(output_file)
-            logging.info(f"  ✅ Saved: {os.path.basename(output_file)} ({len(output_df):,} articles)")
+        # Free the table
+        del table
+        
+        # REAL FIX: Merge all saved chunks into final file
+        if saved_chunks:
+            logging.info(f"  🔗 Merging {len(saved_chunks)} chunks into final file...")
+            all_dfs = []
+            for chunk_file in saved_chunks:
+                df = pd.read_feather(chunk_file)
+                all_dfs.append(df)
             
-            # FIX: Explicit memory cleanup
-            del data, all_rows, output_df
+            final_df = pd.concat(all_dfs, ignore_index=True)
+            final_df = final_df.drop_duplicates(subset=["text", "hostname"])
+            final_df.to_feather(output_file)
+            
+            # Clean up temporary files
+            for chunk_file in saved_chunks:
+                try:
+                    os.remove(chunk_file)
+                except Exception as e:
+                    logging.warning(f"  Could not remove temp file {chunk_file}: {e}")
+            
+            logging.info(f"  ✅ Saved: {os.path.basename(output_file)} ({len(final_df):,} articles)")
+            del all_dfs, final_df
             return True
         else:
             logging.warning(f"  ⚠️  No valid articles extracted from {os.path.basename(filename)}")
-            # FIX: Clean up even on failure
-            del data, all_rows
             return False
             
     except Exception as e:
         logging.error(f"  ❌ Error processing {os.path.basename(filename)}: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
+        
+        # Clean up any temp files on error
+        if 'saved_chunks' in locals():
+            for chunk_file in saved_chunks:
+                try:
+                    if os.path.exists(chunk_file):
+                        os.remove(chunk_file)
+                except:
+                    pass
         return False
 
 def main(folder, tlds_file):
@@ -174,3 +222,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     main(args.folder, args.tlds_file)
+
