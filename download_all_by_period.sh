@@ -1,31 +1,32 @@
 #!/bin/bash
-# filepath: /workspaces/CommonCrawlNewsDataSet/download_all_by_period.sh
 
-# Download ALL files from specified period (Aug 2016 - Sep 2016)
-# Modified from download_two_per_month.sh to download everything
+# Download files from specified period with 100 file limit per month
+# Modified from download_two_per_month.sh
 
 START_YEAR=2016
 START_MONTH=8
 END_YEAR=2016
 END_MONTH=9
 
+# File limit per month
+FILES_PER_MONTH=100
+
 BASE_PATH="/data/CommonCrawl/news"
 mkdir -p "$BASE_PATH"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "📥 CommonCrawl News - Download ALL Files for Period"
+echo "📥 CommonCrawl News - Download with Limit"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📅 Period: $(printf "%04d/%02d" $START_YEAR $START_MONTH) to $(printf "%04d/%02d" $END_YEAR $END_MONTH)"
-echo "📊 Mode: Download ALL available files"
+echo "📊 Mode: Maximum $FILES_PER_MONTH files per month"
 echo "💾 Download location: $BASE_PATH"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 # Skip confirmation if running non-interactively (e.g., with nohup)
 if [ -t 0 ]; then
-    echo "⚠️  WARNING: This will download ALL files for the period!"
-    echo "   Estimated: ~500-800 MB per file × ~30-50 files per month"
-    echo "   Total storage needed: ~30-80 GB for 2 months"
+    echo "⚠️  File limit: $FILES_PER_MONTH files per month"
+    echo "   Estimated: ~700 MB per file"
     echo ""
     read -p "Continue? (y/n): " -n 1 -r
     echo
@@ -86,22 +87,28 @@ while [ "$current_year" -le "$END_YEAR" ]; do
         # Count total files
         total_files=$(echo "$file_list" | wc -l | tr -d ' ')
         echo "📊 Total files available: $total_files"
-        echo "📥 Starting download of ALL files..."
+        echo "📥 Will download maximum: $FILES_PER_MONTH files"
         echo ""
         
-        # Download ALL files
+        # Download files with limit
         file_counter=0
         while IFS= read -r file_path; do
             file_counter=$((file_counter + 1))
+            
+            # Break if limit reached
+            if [ "$file_counter" -gt "$FILES_PER_MONTH" ]; then
+                break
+            fi
+            
             filename=$(basename "$file_path")
             
             # Check if already downloaded
             if [ -f "$BASE_PATH/$month_dir/warc/$filename" ]; then
                 file_size=$(du -h "$BASE_PATH/$month_dir/warc/$filename" | cut -f1)
-                echo "  ✅ [$file_counter/$total_files] Already exists: $filename ($file_size)"
+                echo "  ✅ [$file_counter/$FILES_PER_MONTH] Already exists: $filename ($file_size)"
                 total_skipped=$((total_skipped + 1))
             else
-                echo "  📥 [$file_counter/$total_files] Downloading: $filename"
+                echo "  📥 [$file_counter/$FILES_PER_MONTH] Downloading: $filename"
                 
                 # Download the file
                 download_url="https://data.commoncrawl.org/$file_path"
@@ -117,7 +124,7 @@ while [ "$current_year" -le "$END_YEAR" ]; do
         done <<< "$file_list"
         
         echo ""
-        echo "✅ Completed $month_folder: $file_counter files processed"
+        echo "✅ Completed $month_folder: $file_counter/$total_files files (limit: $FILES_PER_MONTH)"
         echo ""
         
         current_month=$((current_month + 1))
@@ -137,6 +144,7 @@ echo "   Months processed: $total_months"
 echo "   Files downloaded (new): $total_downloaded"
 echo "   Files skipped (existing): $total_skipped"
 echo "   Failed months: $failed_months"
+echo "   File limit per month: $FILES_PER_MONTH"
 echo ""
 
 total_files_on_disk=$(find "$BASE_PATH" -name "*.warc.gz" | wc -l | tr -d ' ')
