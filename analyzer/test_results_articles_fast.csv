@@ -1,0 +1,2 @@
+article_id,nuts_code,nuts2,date,year,anti_estab_score,anti_estab_confidence,econ_nat_score,econ_nat_confidence,people_centric_score,people_centric_confidence,populism_composite,composite_confidence
+a6b0418f-a9a7-4192-8e1c-7a6ef198a16e,FRJ23,FRJ2,2016-08-26,2016,0.03,0.515,0.518,0.759,0.5675,0.7837,0.3718,0.6859
